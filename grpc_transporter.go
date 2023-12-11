@@ -350,7 +350,7 @@ func withCachedGrpcClient(fn func(*grpc.ClientConn) error, address string, opts 
 		return fmt.Errorf("getOrCreateConnection %s: %v", address, err)
 	}
 	if err = fn(grpcConnection); err != nil {
-		fmt.Printf("raft failed to send message:%v", err);
+		fmt.Printf("raft failed to send message:%v\n", err);
 		deleteCachedConnection(address)
 	}
 	return err
