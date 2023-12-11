@@ -336,12 +336,22 @@ func getOrCreateConnection(address string, opts ...grpc.DialOption) (*grpc.Clien
 	return grpcConnection, nil
 }
 
+func deleteCachedConnection(address string) {
+	grpcClientsLock.Lock()
+	defer grpcClientsLock.Unlock()
+
+	delete(grpcClients, address)
+}
+
 func withCachedGrpcClient(fn func(*grpc.ClientConn) error, address string, opts ...grpc.DialOption) error {
 
 	grpcConnection, err := getOrCreateConnection(address, opts...)
 	if err != nil {
 		return fmt.Errorf("getOrCreateConnection %s: %v", address, err)
 	}
-	return fn(grpcConnection)
-
+	if err = fn(grpcConnection); err != nil {
+		fmt.Printf("raft failed to send message:%v", err);
+		deleteCachedConnection(address)
+	}
+	return err
 }
