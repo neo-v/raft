@@ -328,6 +328,7 @@ func getOrCreateConnection(address string, opts ...grpc.DialOption) (*grpc.Clien
 
 	grpcConnection, err := grpcDial(address, opts...)
 	if err != nil {
+			fmt.Printf("raft failed to init conn addr:%s,%v\n", address, err);
 		return nil, fmt.Errorf("fail to dial %s: %v", address, err)
 	}
 
