@@ -1162,6 +1162,7 @@ func (s *server) AddPeer(name string, connectiongString string) error {
 		s.peers[peer.Name] = peer
 
 		s.DispatchEvent(newEvent(AddPeerEventType, name, nil))
+		fmt.Printf("raft:add peer:%v\n", peer)
 	}
 
 	// Write the configuration to file.
@@ -1263,6 +1264,9 @@ func (s *server) TakeSnapshot() error {
 	peers := make([]*Peer, 0, len(s.peers)+1)
 	for _, peer := range s.peers {
 		peers = append(peers, peer.clone())
+		if peer.ConnectionString == "" {
+			fmt.Printf("warnning:raft take snap shot found peer:%v has empty addr\n", peer)
+		}
 	}
 	peers = append(peers, &Peer{Name: s.Name(), ConnectionString: s.connectionString})
 
