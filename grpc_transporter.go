@@ -3,11 +3,12 @@ package raft
 import (
 	context2 "context"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/seaweedfs/raft/protobuf"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
-	"sync"
-	"time"
 )
 
 var (
@@ -328,7 +329,7 @@ func getOrCreateConnection(address string, opts ...grpc.DialOption) (*grpc.Clien
 
 	grpcConnection, err := grpcDial(address, opts...)
 	if err != nil {
-		fmt.Printf("raft failed to init conn addr:%s,%v\n", address, err);
+		fmt.Printf("raft failed to init conn addr:%s,%v\n", address, err)
 		return nil, fmt.Errorf("fail to dial %s: %v", address, err)
 	}
 
@@ -351,7 +352,7 @@ func withCachedGrpcClient(fn func(*grpc.ClientConn) error, address string, opts 
 		return fmt.Errorf("getOrCreateConnection %s: %v", address, err)
 	}
 	if err = fn(grpcConnection); err != nil {
-		fmt.Printf("raft failed to send message:%v\n", err);
+		fmt.Printf("raft failed to send message:%v, con:%v\n", err, grpcConnection.Target())
 		deleteCachedConnection(address)
 		grpcConnection.Close()
 	}

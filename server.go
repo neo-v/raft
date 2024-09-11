@@ -295,6 +295,7 @@ func (s *server) setState(state string) {
 
 	// Update state and leader.
 	s.state = state
+	s.infoln("set state ", state)
 	if state == Leader {
 		s.leader = s.Name()
 		s.syncedPeer = make(map[string]bool)
@@ -454,12 +455,12 @@ func (s *server) Start() error {
 	// 2. wait for self-join command
 	// to set itself promotable
 	if !s.promotable() {
-		s.debugln("start as a new raft server")
+		s.infoln("start as a new raft server")
 
 		// If log entries exist then allow promotion to candidate
 		// if no AEs received.
 	} else {
-		s.debugln("start from previous saved state")
+		s.infoln("start from previous saved state")
 	}
 
 	debugln(s.GetState())
@@ -527,6 +528,7 @@ func (s *server) Stop() {
 
 	s.log.close()
 	s.setState(Stopped)
+	s.infoln("set state ", Stopped)
 }
 
 // Checks if the server is currently running.
@@ -572,6 +574,7 @@ func (s *server) updateCurrentTerm(term uint64, leaderName string) {
 	s.DispatchEvent(newEvent(TermChangeEventType, s.currentTerm, prevTerm))
 
 	if prevLeader != s.leader {
+		s.infoln("updateCurrentTerm a new leader")
 		s.DispatchEvent(newEvent(LeaderChangeEventType, s.leader, prevLeader))
 	}
 }
@@ -580,18 +583,21 @@ func (s *server) updateCurrentTerm(term uint64, leaderName string) {
 // Event Loop
 //--------------------------------------
 
-//               ________
-//            --|Snapshot|                 timeout
-//            |  --------                  ______
+//	   ________
+//	--|Snapshot|                 timeout
+//	|  --------                  ______
+//
 // recover    |       ^                   |      |
 // snapshot / |       |snapshot           |      |
 // higher     |       |                   v      |     recv majority votes
 // term       |    --------    timeout    -----------                        -----------
-//            |-> |Follower| ----------> | Candidate |--------------------> |  Leader   |
-//                 --------               -----------                        -----------
-//                    ^          higher term/ |                         higher term |
-//                    |            new leader |                                     |
-//                    |_______________________|____________________________________ |
+//
+//	|-> |Follower| ----------> | Candidate |--------------------> |  Leader   |
+//	     --------               -----------                        -----------
+//	        ^          higher term/ |                         higher term |
+//	        |            new leader |                                     |
+//	        |_______________________|____________________________________ |
+//
 // The main event loop for the server
 func (s *server) loop() {
 	defer s.debugln("server.loop.end")
@@ -599,7 +605,7 @@ func (s *server) loop() {
 	state := s.State()
 
 	for state != Stopped {
-		s.debugln("server.loop.run ", state)
+		s.infoln("server.loop.run ", state)
 		switch state {
 		case Follower:
 			s.followerLoop()
@@ -675,8 +681,9 @@ func (s *server) checkQuorumActive(timeout time.Duration) bool {
 // The event loop that is run when the server is in a Follower state.
 // Responds to RPCs from candidates and leaders.
 // Converts to candidate if election timeout elapses without either:
-//   1.Receiving valid AppendEntries RPC, or
-//   2.Granting vote to candidate
+//
+//	1.Receiving valid AppendEntries RPC, or
+//	2.Granting vote to candidate
 func (s *server) followerLoop() {
 	since := time.Now()
 	electionTimeout := s.ElectionTimeout()
@@ -697,7 +704,7 @@ func (s *server) followerLoop() {
 				//If no log entries exist and a self-join command is issued
 				//then immediately become leader and commit entry.
 				if s.log.currentIndex() == 0 && req.NodeName() == s.Name() {
-					s.debugln("selfjoin and promote to leader")
+					s.infoln("selfjoin and promote to leader")
 					s.setState(Leader)
 					s.processCommand(req, e)
 				} else {
@@ -723,8 +730,10 @@ func (s *server) followerLoop() {
 		case <-timeoutChan:
 			// only allow synced follower to promote to candidate
 			if s.promotable() {
+				s.infoln("time out and promote to Candidate")
 				s.setState(Candidate)
 			} else {
+				s.infoln("time out and update")
 				update = true
 			}
 		}
@@ -783,7 +792,7 @@ func (s *server) candidateLoop() {
 		// If we received enough votes then stop waiting for more votes.
 		// And return from the candidate loop
 		if votesGranted == s.QuorumSize() {
-			s.debugln("server.candidate.recv.enough.votes")
+			s.infoln("server.candidate.recv.enough.votes")
 			s.setState(Leader)
 			return
 		}
@@ -858,7 +867,7 @@ func (s *server) leaderLoop() {
 		case <-ticker:
 			// Split-brain
 			if s.checkQuorumActive(s.ElectionTimeout()) == false {
-				s.debugln("step.down.to.follower")
+				s.infoln("step.down.to.follower")
 				var wg sync.WaitGroup
 				for _, peer := range s.peers {
 					wg.Add(1)
@@ -993,6 +1002,7 @@ func (s *server) processAppendEntriesRequest(req *AppendEntriesRequest) (*Append
 		prevLeader := s.leader
 		s.leader = req.LeaderName
 		if prevLeader != s.leader {
+			s.infoln("server.ae.update leader:", prevLeader, "->", s.leader)
 			s.DispatchEvent(newEvent(LeaderChangeEventType, s.leader, prevLeader))
 		}
 
@@ -1071,20 +1081,20 @@ func (s *server) processAppendEntriesResponse(resp *AppendEntriesResponse) {
 }
 
 // processVoteReponse processes a vote request:
-// 1. if the vote is granted for the current term of the candidate, return true
-// 2. if the vote is denied due to smaller term, update the term of this server
-//    which will also cause the candidate to step-down, and return false.
-// 3. if the vote is for a smaller term, ignore it and return false.
+//  1. if the vote is granted for the current term of the candidate, return true
+//  2. if the vote is denied due to smaller term, update the term of this server
+//     which will also cause the candidate to step-down, and return false.
+//  3. if the vote is for a smaller term, ignore it and return false.
 func (s *server) processVoteResponse(resp *RequestVoteResponse) bool {
 	if resp.VoteGranted && resp.Term == s.currentTerm {
 		return true
 	}
 
 	if resp.Term > s.currentTerm {
-		s.debugln("server.candidate.vote.failed")
+		s.infoln("server.candidate.vote.failed")
 		s.updateCurrentTerm(resp.Term, "")
 	} else {
-		s.debugln("server.candidate.vote: denied")
+		s.infoln("server.candidate.vote: denied")
 	}
 	return false
 }
@@ -1144,7 +1154,7 @@ func (s *server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 
 // Adds a peer to the server.
 func (s *server) AddPeer(name string, connectiongString string) error {
-	s.debugln("server.peer.add: ", name, len(s.peers))
+	s.infoln("server.peer.add: ", name, len(s.peers))
 
 	// Do not allow peers to be added twice.
 	if s.peers[name] != nil {
@@ -1162,7 +1172,7 @@ func (s *server) AddPeer(name string, connectiongString string) error {
 		s.peers[peer.Name] = peer
 
 		s.DispatchEvent(newEvent(AddPeerEventType, name, nil))
-		fmt.Printf("raft:add peer:%v\n", peer)
+		s.infoln("add other peer:", peer)
 	}
 
 	// Write the configuration to file.
@@ -1211,9 +1221,9 @@ func (s *server) RemovePeer(name string) error {
 	return nil
 }
 
-//--------------------------------------
+// --------------------------------------
 // Log compaction
-//--------------------------------------
+// --------------------------------------
 func (s *server) maybeTakeSnapshot() {
 	if s.stateMachine != nil && s.pendingSnapshot == nil && len(s.LogEntries()) > NumberOfLogEntriesAfterSnapshot*2 {
 		s.routineGroup.Add(1)
@@ -1532,6 +1542,10 @@ func (s *server) debugln(v ...interface{}) {
 	if logLevel > Debug {
 		debugf("[%s Term:%d] %s", s.name, s.Term(), fmt.Sprintln(v...))
 	}
+}
+
+func (s *server) infoln(v ...interface{}) {
+	logger.Printf("[%s raft info] %s", s.name, fmt.Sprintln(v...))
 }
 
 func (s *server) traceln(v ...interface{}) {

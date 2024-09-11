@@ -197,7 +197,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 	resp := p.server.Transporter().SendAppendEntriesRequest(p.server, p, req)
 	if resp == nil {
 		p.server.DispatchEvent(newEvent(HeartbeatIntervalEventType, p, nil))
-		debugln("peer.append.timeout: ", p.server.Name(), "->", p.Name)
+		logger.Printf("[raft info] peer.append.timeout: %s -> %s", p.server.Name(), p.Name)
 		return
 	}
 	traceln("peer.append.resp: ", p.server.Name(), "<-", p.Name)
@@ -314,11 +314,11 @@ func (p *Peer) sendVoteRequest(req *RequestVoteRequest, c chan *RequestVoteRespo
 	debugln("peer.vote: ", p.server.Name(), "->", p.Name)
 	req.peer = p
 	if resp := p.server.Transporter().SendVoteRequest(p.server, p, req); resp != nil {
-		debugln("peer.vote.recv: ", p.server.Name(), "<-", p.Name)
+		logger.Printf("[raft info] peer.vote.recv: %s <- %s", p.server.Name(), p.Name)
 		p.setLastActivity(time.Now())
 		resp.peer = p
 		c <- resp
 	} else {
-		debugln("peer.vote.failed: ", p.server.Name(), "<-", p.Name)
+		logger.Printf("[raft info] peer.vote.failed: %s <- %s", p.server.Name(), p.Name)
 	}
 }
