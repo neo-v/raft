@@ -1242,8 +1242,8 @@ func (s *server) TakeSnapshot() error {
 	}
 
 	// Shortcut without lock
-	s.Lock()
-	defer s.Unlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	// Exit if the server is currently creating a snapshot.
 	if s.pendingSnapshot != nil {
 		return errors.New("Snapshot: Last snapshot is not finished.")

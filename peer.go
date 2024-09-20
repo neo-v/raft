@@ -181,6 +181,7 @@ func (p *Peer) flush() {
 	if entries != nil {
 		p.sendAppendEntriesRequest(newAppendEntriesRequest(term, prevLogIndex, prevLogTerm, p.server.log.CommitIndex(), p.server.name, entries))
 	} else if p.server.snapshot != nil {
+		logger.Printf("[raft info] send snap shot request to %s, preIndex %d, startIndex %d", p.Name, prevLogIndex, p.server.log.startIndex)
 		p.sendSnapshotRequest(newSnapshotRequest(p.server.name, p.server.snapshot))
 	}
 }
