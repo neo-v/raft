@@ -834,7 +834,7 @@ func (s *server) leaderLoop() {
 	logIndex, _ := s.log.lastInfo()
 
 	// Update the peers prevLogIndex to leader's lastLogIndex and start heartbeat.
-	s.debugln("leaderLoop.set.PrevIndex to ", logIndex)
+	s.infoln("leaderLoop.set.PrevIndex to ", logIndex)
 	for _, peer := range s.peers {
 		peer.setPrevLogIndex(logIndex)
 		peer.startHeartbeat()

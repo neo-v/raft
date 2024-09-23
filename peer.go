@@ -236,7 +236,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 			// we just need to update peer's prevLog index to commitIndex
 
 			p.prevLogIndex = resp.CommitIndex()
-			debugln("peer.append.resp.update: ", p.Name, "; idx =", p.prevLogIndex)
+			logger.Println("peer.append.resp.update: ", p.Name, "; idx =", p.prevLogIndex)
 
 		} else if p.prevLogIndex > 0 {
 			// Decrement the previous log index down until we find a match. Don't
@@ -248,7 +248,7 @@ func (p *Peer) sendAppendEntriesRequest(req *AppendEntriesRequest) {
 				p.prevLogIndex = resp.Index()
 			}
 
-			debugln("peer.append.resp.decrement: ", p.Name, "; idx =", p.prevLogIndex)
+			logger.Println("peer.append.resp.decrement: ", p.Name, "; idx =", p.prevLogIndex)
 		}
 	}
 	p.Unlock()
