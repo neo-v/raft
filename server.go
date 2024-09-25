@@ -1251,7 +1251,7 @@ func (s *server) TakeSnapshot() error {
 
 	// TODO: acquire the lock and no more committed is allowed
 	// This will be done after finishing refactoring heartbeat
-	s.debugln("take.snapshot")
+	s.infoln("take.snapshot")
 
 	lastIndex, lastTerm := s.log.commitInfo()
 
@@ -1381,6 +1381,7 @@ func (s *server) processSnapshotRecoveryRequest(req *SnapshotRecoveryRequest) *S
 
 	// Clear the previous log entries.
 	s.log.compact(req.LastIndex, req.LastTerm)
+	s.setState(Follower)
 
 	return newSnapshotRecoveryResponse(req.LastTerm, true, req.LastIndex)
 }
